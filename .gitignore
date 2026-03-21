@@ -1,11 +1,31 @@
+cat > .gitignore << 'EOF'
+# Python
 venv/
 __pycache__/
 *.pyc
+
+# Environment variables - NEVER commit this
 .env
-data/
+
+# Data files - ignore contents but keep folder structure
+data/raw/kaggle/*
+data/raw/api/*
+data/raw/sec/*
+data/processed/*
+
+# Keep the .gitkeep files so folders show on GitHub
+!data/raw/kaggle/.gitkeep
+!data/raw/api/.gitkeep
+!data/raw/sec/.gitkeep
+!data/processed/.gitkeep
+
+# dbt
 sp500_dbt/target/
 sp500_dbt/dbt_packages/
 sp500_dbt/logs/
+
+# macOS
 .DS_Store
-.ipynb_checkpoints/
 ~$*.docx
+.ipynb_checkpoints/
+EOF
