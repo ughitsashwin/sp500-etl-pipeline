@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: public
+    database: sp500_dw
+    schema: public
+    description: "Raw tables loaded by our Python extraction scripts"
+    tables:
+      - name: raw_financials
+        description: "S&P 500 company financials from Kaggle CSV"
+      - name: raw_income_statements
+        description: "Income statements from Alpha Vantage API"
+      - name: raw_sec_facts
+        description: "Financial facts from SEC EDGAR filings"
