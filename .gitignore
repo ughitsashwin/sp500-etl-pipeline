@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+data/
+sp500_dbt/target/
+sp500_dbt/dbt_packages/
+sp500_dbt/logs/
+.DS_Store
+.ipynb_checkpoints/
+~$*.docx
