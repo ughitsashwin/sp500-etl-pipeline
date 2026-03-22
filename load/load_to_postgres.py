@@ -11,9 +11,14 @@ def get_engine(connection_string=None):
     print("Database engine created successfully")
     return engine
 
+def drop_table_cascade(engine, table_name):
+    """Drop a table with CASCADE to remove dependent views first"""
+    with engine.connect() as conn:
+        conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
+        conn.commit()
+
 def load_kaggle_financials(engine):
     print("\nLoading Kaggle financials into PostgreSQL...")
-    # Try both local and Docker paths
     for path in ["data/raw/kaggle/financials.csv",
                  "/opt/airflow/project/data/raw/kaggle/financials.csv"]:
         if os.path.exists(path):
@@ -25,6 +30,8 @@ def load_kaggle_financials(engine):
     df.columns = (df.columns.str.lower()
                   .str.replace("/", "_per_", regex=False)
                   .str.replace(" ", "_", regex=False))
+    # Drop with CASCADE first to remove dependent dbt views
+    drop_table_cascade(engine, "raw_financials")
     df.to_sql("raw_financials", con=engine, schema="public",
               if_exists="replace", index=False, method="multi", chunksize=500)
     print(f"Loaded {len(df)} rows into raw_financials")
@@ -32,7 +39,6 @@ def load_kaggle_financials(engine):
 def load_api_income_statements(engine):
     print("\nLoading API income statements into PostgreSQL...")
     all_records = []
-    # Try both local and Docker paths
     for folder in ["data/raw/api", "/opt/airflow/project/data/raw/api"]:
         if os.path.exists(folder):
             api_folder = folder
@@ -53,6 +59,7 @@ def load_api_income_statements(engine):
         print("  No income statement files found — skipping")
         return
     df = pd.DataFrame(all_records)
+    drop_table_cascade(engine, "raw_income_statements")
     df.to_sql("raw_income_statements", con=engine, schema="public",
               if_exists="replace", index=False, method="multi")
     print(f"Loaded {len(df)} rows into raw_income_statements")
@@ -89,6 +96,7 @@ def load_sec_facts(engine):
         print("  No SEC files found — skipping")
         return
     df = pd.DataFrame(all_records)
+    drop_table_cascade(engine, "raw_sec_facts")
     df.to_sql("raw_sec_facts", con=engine, schema="public",
               if_exists="replace", index=False, method="multi")
     print(f"Loaded {len(df)} rows into raw_sec_facts")
@@ -102,7 +110,6 @@ def verify_tables(engine):
                 f"SELECT COUNT(*) as row_count FROM {table}", engine)
             print(f"  {table}: {result['row_count'][0]} rows")
         except Exception:
-            # Table may not exist if its source was skipped
             print(f"  {table}: not found (source was skipped)")
 
 if __name__ == "__main__":

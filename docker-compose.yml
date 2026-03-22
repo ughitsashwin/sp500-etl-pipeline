@@ -9,8 +9,6 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW__WEBSERVER__SECRET_KEY: 'sp500_etl_secret_key_2024'
-    # PostgreSQL connection for our data warehouse
-    # Uses the Docker service name instead of localhost
     SP500_DB_HOST: sp500-postgres
     SP500_DB_PORT: '5432'
     SP500_DB_USER: sp500user
@@ -28,7 +26,7 @@ x-airflow-common:
 
 services:
 
-  # Airflow's own metadata database
+  # Airflow metadata database
   postgres-airflow:
     image: postgres:15
     environment:
@@ -42,8 +40,7 @@ services:
     ports:
       - "5433:5432"
 
-  # Our SP500 data warehouse — now part of the Airflow network
-  # so Airflow containers can reach it by service name
+  # SP500 data warehouse
   sp500-postgres:
     image: postgres:15
     environment:
@@ -57,11 +54,13 @@ services:
       interval: 5s
       retries: 5
 
+  # Airflow init
   airflow-init:
     <<: *airflow-common
     command: bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname Admin --role Admin --email admin@example.com"
     restart: on-failure
 
+  # Airflow webserver — http://localhost:8080
   airflow-webserver:
     <<: *airflow-common
     command: webserver
@@ -69,7 +68,24 @@ services:
       - "8080:8080"
     restart: always
 
+  # Airflow scheduler
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
     restart: always
+
+  # Apache Superset — http://localhost:8088
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile.superset
+    environment:
+      SUPERSET_SECRET_KEY: 'sp500_superset_secret_2024'
+    ports:
+      - "8088:8088"
+    depends_on:
+      sp500-postgres:
+        condition: service_healthy
+    restart: always
+
+# This line intentionally left blank - see superset service update below
