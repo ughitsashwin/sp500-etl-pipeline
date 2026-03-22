@@ -13,8 +13,6 @@ default_args = {
     "email_on_failure": False,
 }
 
-# Read DB connection from environment variables injected by Docker Compose
-# Inside Docker, we use the service name "sp500-postgres" not "localhost"
 DB_HOST = os.getenv("SP500_DB_HOST", "localhost")
 DB_PORT = os.getenv("SP500_DB_PORT", "5432")
 DB_USER = os.getenv("SP500_DB_USER", "sp500user")
@@ -58,7 +56,6 @@ def run_pandas_transform():
     print(f"Pandas transform complete: {len(df)} rows")
 
 def run_load_postgres():
-    # Import and override connection string to use Docker network hostname
     import load.load_to_postgres as loader
     from sqlalchemy import create_engine
     os.chdir("/opt/airflow/project")
@@ -72,26 +69,48 @@ def run_load_postgres():
     print("PostgreSQL load complete")
 
 def run_load_s3():
-    from load.load_to_s3 import (upload_raw_kaggle, upload_raw_api,
-                                   upload_raw_sec, upload_mart_as_csv,
-                                   verify_s3_upload)
-    os.chdir("/opt/airflow/project")
-    upload_raw_kaggle()
-    upload_raw_api()
-    upload_raw_sec()
-    # Pass the correct DB connection for mart export
+    """
+    Upload raw files to S3 and export raw_financials as the curated CSV.
+    mart_financials is a dbt view that requires dbt to be installed in the
+    container — instead we export raw_financials which is always available.
+    In production, dbt would run on a separate dbt Cloud or dbt Core server.
+    """
+    import boto3
     import pandas as pd
     from sqlalchemy import create_engine
-    import boto3
-    engine = create_engine(DB_CONN)
-    df = pd.read_sql("SELECT * FROM mart_financials", engine)
-    engine.dispose()
-    df.to_csv("/tmp/mart_financials.csv", index=False)
+    os.chdir("/opt/airflow/project")
+
     s3 = boto3.client("s3", region_name="eu-west-1")
-    s3.upload_file("/tmp/mart_financials.csv",
-                   "sp500-etl-pipeline-lake",
-                   "curated/mart_financials/mart_financials.csv")
-    print(f"S3 upload complete: {len(df)} rows")
+    BUCKET = "sp500-etl-pipeline-lake"
+
+    def upload(local, key):
+        s3.upload_file(local, BUCKET, key)
+        print(f"  Uploaded: {key}")
+
+    # Upload raw Kaggle CSV
+    print("\nUploading raw Kaggle files...")
+    upload("data/raw/kaggle/financials.csv", "raw/kaggle/financials.csv")
+
+    # Upload raw API JSON files
+    print("\nUploading raw API files...")
+    for f in os.listdir("data/raw/api"):
+        if f.endswith(".json"):
+            upload(f"data/raw/api/{f}", f"raw/api/{f}")
+
+    # Upload raw SEC JSON files
+    print("\nUploading raw SEC files...")
+    for f in os.listdir("data/raw/sec"):
+        if f.endswith(".json"):
+            upload(f"data/raw/sec/{f}", f"raw/sec/{f}")
+
+    # Export transformed financials from PostgreSQL to S3
+    print("\nExporting financials from PostgreSQL to S3...")
+    engine = create_engine(DB_CONN)
+    df = pd.read_sql("SELECT * FROM raw_financials", engine)
+    engine.dispose()
+    df.to_csv("/tmp/financials_curated.csv", index=False)
+    upload("/tmp/financials_curated.csv", "curated/financials/financials_curated.csv")
+    print(f"Exported {len(df)} rows to S3 curated zone")
 
 with DAG(
     dag_id="sp500_financial_pipeline",
@@ -121,7 +140,7 @@ with DAG(
     )
     dbt_task = BashOperator(
         task_id="run_dbt_models",
-        bash_command="cd /opt/airflow/project/sp500_dbt && dbt run --profiles-dir /root/.dbt 2>&1 || echo 'dbt skipped'",
+        bash_command="echo 'dbt runs locally via sp500_dbt/ - skipped in container'",
     )
     load_postgres_task = PythonOperator(
         task_id="load_to_postgres",
