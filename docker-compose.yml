@@ -8,6 +8,14 @@ x-airflow-common:
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'sp500_etl_secret_key_2024'
+    # PostgreSQL connection for our data warehouse
+    # Uses the Docker service name instead of localhost
+    SP500_DB_HOST: sp500-postgres
+    SP500_DB_PORT: '5432'
+    SP500_DB_USER: sp500user
+    SP500_DB_PASS: sp500pass
+    SP500_DB_NAME: sp500_dw
     AWS_DEFAULT_REGION: eu-west-1
     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -20,6 +28,7 @@ x-airflow-common:
 
 services:
 
+  # Airflow's own metadata database
   postgres-airflow:
     image: postgres:15
     environment:
@@ -32,6 +41,21 @@ services:
       retries: 5
     ports:
       - "5433:5432"
+
+  # Our SP500 data warehouse — now part of the Airflow network
+  # so Airflow containers can reach it by service name
+  sp500-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: sp500user
+      POSTGRES_PASSWORD: sp500pass
+      POSTGRES_DB: sp500_dw
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "sp500user"]
+      interval: 5s
+      retries: 5
 
   airflow-init:
     <<: *airflow-common
