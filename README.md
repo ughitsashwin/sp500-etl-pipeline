@@ -4,10 +4,16 @@ An end-to-end ETL/ELT data pipeline that extracts S&P 500 company financial data
 
 ---
 
+## Dashboard
+
+![SP500 Financial Dashboard](screenshots/dashboard.png)
+
+---
+
 ## Architecture
 ```
 Sources                    Extract              Transform           Load                    Serve
-─────────────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────────────
 Kaggle CSV     ──────────► Python/pandas ──►
 Alpha Vantage  ──────────► requests API  ──► PySpark (ETL) ──► AWS S3 (data lake)  ──► Athena SQL
 SEC EDGAR      ──────────► HTTP JSON     ──► dbt (ELT)     ──► PostgreSQL (DWH)    ──► Superset
@@ -59,9 +65,8 @@ Dual transformation approach demonstrating both ETL and ELT patterns:
 - AWS Athena external tables for serverless querying
 
 ### Phase 5 — Orchestration
-Apache Airflow DAG (`dags/sp500_pipeline.py`) with:
-- 7 tasks running daily on a schedule
-- Parallel extraction (3 sources simultaneously)
+Apache Airflow DAG with 7 tasks running daily:
+- Parallel extraction from 3 sources simultaneously
 - Automatic retries on failure
 - Full pipeline: extract → transform → dbt → load PostgreSQL → load S3
 
@@ -69,7 +74,7 @@ Apache Airflow DAG (`dags/sp500_pipeline.py`) with:
 Apache Superset dashboard with 4 charts:
 - Average market cap by sector
 - Average P/E ratio by sector
-- Company distribution by sector (pie)
+- Company distribution by sector
 - EBITDA vs market cap scatter plot (505 companies)
 
 ## Key Financial Metrics Calculated
@@ -90,15 +95,15 @@ raw_income_statements   ──► stg_income_statements ──► mart_financial
 raw_sec_facts           ──► stg_sec_facts ──────────────────────────────┘
 ```
 
-## Running the Project
+## Setup
 
 ### Prerequisites
 - Docker Desktop
 - Python 3.11+
 - AWS account (free tier)
-- AWS CLI configured
+- AWS CLI configured with an IAM user
 
-### Setup
+### Installation
 ```bash
 git clone https://github.com/ughitsashwin/sp500-etl-pipeline
 cd sp500-etl-pipeline
@@ -124,11 +129,9 @@ python load/load_to_s3.py
 cd sp500_dbt && dbt run && cd ..
 ```
 
-### Access services
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Airflow | http://localhost:8080 | admin / admin |
-| Superset | http://localhost:8088 | admin / admin |
+### Services
+- Airflow UI: http://localhost:8080
+- Superset UI: http://localhost:8088
 
 ## Project Structure
 ```
@@ -138,8 +141,8 @@ sp500-etl-pipeline/
 ├── transform/               # PySpark transformation
 ├── load/                    # PostgreSQL and S3 loaders
 ├── sp500_dbt/               # dbt project (staging + mart models)
+├── screenshots/             # Dashboard screenshots
 ├── data/raw/                # Raw data (gitignored)
-├── notebooks/               # Jupyter analysis
 ├── docker-compose.yml       # All services
 └── requirements.txt
 ```
